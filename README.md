@@ -1,10 +1,7 @@
-# SushiSwap
+# Songbird OracleDex
 
-https://sushi.com/
 
 ## Deployed Contracts
-
-https://dev.sushi.com/sushiswap/contracts
 
 ## Docs
 
