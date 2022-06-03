@@ -6,30 +6,17 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "./OracleToken.sol";
+import "./Prophet.sol";
 
-interface IMigratorChef {
-    // Perform LP token migration from legacy UniswapV2 to OracleSwap.
-    // Take the current LP token address and return the new LP token address.
-    // Migrator should have full access to the caller's LP token.
-    // Return the new LP token address.
-    //
-    // XXX Migrator must have allowance access to UniswapV2 LP tokens.
-    // OracleSwap must mint EXACTLY the same amount of OracleSwap LP tokens or
-    // else something bad will happen. Traditional UniswapV2 does not
-    // do that so be careful!
-    function migrate(IERC20 token) external returns (IERC20);
-}
 
-// MasterChef is the master of Oracle. He can make Oracle and he is a fair guy.
+// MasterProphet is the master of Pro. He can make Pro and he is a fair guy.
 //
 // Note that it's ownable and the owner wields tremendous power. The ownership
-// will be transferred to a governance smart contract once ORACLE is sufficiently
+// will be transferred to a governance smart contract once PRO is sufficiently
 // distributed and the community can show to govern itself.
 //
 // Have fun reading it. Hopefully it's bug-free. God bless.
-contract MasterChef is Ownable {
+contract MasterProphet is Ownable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
     // Info of each user.
@@ -37,13 +24,13 @@ contract MasterChef is Ownable {
         uint256 amount; // How many LP tokens the user has provided.
         uint256 rewardDebt; // Reward debt. See explanation below.
         //
-        // We do some fancy math here. Basically, any point in time, the amount of ORACLEs
+        // We do some fancy math here. Basically, any point in time, the amount of PROs
         // entitled to a user but is pending to be distributed is:
         //
-        //   pending reward = (user.amount * pool.accOraclePerShare) - user.rewardDebt
+        //   pending reward = (user.amount * pool.accProPerShare) - user.rewardDebt
         //
         // Whenever a user deposits or withdraws LP tokens to a pool. Here's what happens:
-        //   1. The pool's `accOraclePerShare` (and `lastRewardBlock`) gets updated.
+        //   1. The pool's `accProPerShare` (and `lastRewardBlock`) gets updated.
         //   2. User receives the pending reward sent to his/her address.
         //   3. User's `amount` gets updated.
         //   4. User's `rewardDebt` gets updated.
@@ -51,29 +38,28 @@ contract MasterChef is Ownable {
     // Info of each pool.
     struct PoolInfo {
         IERC20 lpToken; // Address of LP token contract.
-        uint256 allocPoint; // How many allocation points assigned to this pool. ORACLEs to distribute per block.
-        uint256 lastRewardBlock; // Last block number that ORACLEs distribution occurs.
-        uint256 accOraclePerShare; // Accumulated ORACLEs per share, times 1e12. See below.
+        uint256 allocPoint; // How many allocation points assigned to this pool. PROs to distribute per block.
+        uint256 lastRewardBlock; // Last block number that PROs distribution occurs.
+        uint256 accProPerShare; // Accumulated PROs per share, times 1e12. See below.
     }
-    // The ORACLE TOKEN!
-    OracleToken public oracle;
+    // The PRO TOKEN!
+    ProphetToken public pro;
     // Dev address.
     address public devaddr;
-    // Block number when bonus ORACLE period ends.
+    // Block number when bonus PRO period ends.
     uint256 public bonusEndBlock;
-    // ORACLE tokens created per block.
-    uint256 public oraclePerBlock;
-    // Bonus muliplier for early oracle makers.
-    uint256 public constant BONUS_MULTIPLIER = 10;
-    // The migrator contract. It has a lot of power. Can only be set through governance (owner).
-    IMigratorChef public migrator;
+    // PRO tokens created per block.
+    uint256 public proPerBlock;
+    // Bonus muliplier for early pro makers.
+    uint256 public constant BONUS_MULTIPLIER = 6;
+
     // Info of each pool.
     PoolInfo[] public poolInfo;
     // Info of each user that stakes LP tokens.
     mapping(uint256 => mapping(address => UserInfo)) public userInfo;
     // Total allocation poitns. Must be the sum of all allocation points in all pools.
     uint256 public totalAllocPoint = 0;
-    // The block number when ORACLE mining starts.
+    // The block number when PRO mining starts.
     uint256 public startBlock;
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
@@ -84,17 +70,36 @@ contract MasterChef is Ownable {
     );
 
     constructor(
-        OracleToken _oracle,
+        ProphetToken _pro,
         address _devaddr,
-        uint256 _oraclePerBlock,
+        uint256 _proPerBlock,
         uint256 _startBlock,
         uint256 _bonusEndBlock
     ) public {
-        oracle = _oracle;
+        pro = _pro;
         devaddr = _devaddr;
-        oraclePerBlock = _oraclePerBlock;
+        proPerBlock = _proPerBlock;
         bonusEndBlock = _bonusEndBlock;
         startBlock = _startBlock;
+    }
+
+
+    address public owner;
+    address public ownerGovernance;
+
+
+    modifier onlyOwner() {
+        require(owner == msg.sender || ownerGovernance == msg.sender, "User is not owner");
+        _;
+    }
+
+    function setOwner(address owner_, address ownerGovernance_)
+        public
+        onlyOwnerSetter
+    {
+         owner = owner_;
+         ownerGovernance = ownerGovernance_;
+
     }
 
     function poolLength() external view returns (uint256) {
@@ -120,12 +125,12 @@ contract MasterChef is Ownable {
                 lpToken: _lpToken,
                 allocPoint: _allocPoint,
                 lastRewardBlock: lastRewardBlock,
-                accOraclePerShare: 0
+                accProPerShare: 0
             })
         );
     }
 
-    // Update the given pool's ORACLE allocation point. Can only be called by the owner.
+    // Update the given pool's PRO allocation point. Can only be called by the owner.
     function set(
         uint256 _pid,
         uint256 _allocPoint,
@@ -140,22 +145,6 @@ contract MasterChef is Ownable {
         poolInfo[_pid].allocPoint = _allocPoint;
     }
 
-    // Set the migrator contract. Can only be called by the owner.
-    function setMigrator(IMigratorChef _migrator) public onlyOwner {
-        migrator = _migrator;
-    }
-
-    // Migrate lp token to another lp contract. Can be called by anyone. We trust that migrator contract is good.
-    function migrate(uint256 _pid) public {
-        require(address(migrator) != address(0), "migrate: no migrator");
-        PoolInfo storage pool = poolInfo[_pid];
-        IERC20 lpToken = pool.lpToken;
-        uint256 bal = lpToken.balanceOf(address(this));
-        lpToken.safeApprove(address(migrator), bal);
-        IERC20 newLpToken = migrator.migrate(lpToken);
-        require(bal == newLpToken.balanceOf(address(this)), "migrate: bad");
-        pool.lpToken = newLpToken;
-    }
 
     // Return reward multiplier over the given _from to _to block.
     function getMultiplier(uint256 _from, uint256 _to)
@@ -175,31 +164,31 @@ contract MasterChef is Ownable {
         }
     }
 
-    // View function to see pending ORACLEs on frontend.
-    function pendingOracle(uint256 _pid, address _user)
+    // View function to see pending PROs on frontend.
+    function pendingPro(uint256 _pid, address _user)
         external
         view
         returns (uint256)
     {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
-        uint256 accOraclePerShare = pool.accOraclePerShare;
+        uint256 accProPerShare = pool.accProPerShare;
         uint256 lpSupply = pool.lpToken.balanceOf(address(this));
         if (block.number > pool.lastRewardBlock && lpSupply != 0) {
             uint256 multiplier = getMultiplier(
                 pool.lastRewardBlock,
                 block.number
             );
-            uint256 oracleReward = multiplier
-                .mul(oraclePerBlock)
+            uint256 proReward = multiplier
+                .mul(proPerBlock)
                 .mul(pool.allocPoint)
                 .div(totalAllocPoint);
-            accOraclePerShare = accOraclePerShare.add(
-                oracleReward.mul(1e12).div(lpSupply)
+            accProPerShare = accProPerShare.add(
+                proReward.mul(1e12).div(lpSupply)
             );
         }
         return
-            user.amount.mul(accOraclePerShare).div(1e12).sub(user.rewardDebt);
+            user.amount.mul(accProPerShare).div(1e12).sub(user.rewardDebt);
     }
 
     // Update reward vairables for all pools. Be careful of gas spending!
@@ -222,19 +211,19 @@ contract MasterChef is Ownable {
             return;
         }
         uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
-        uint256 oracleReward = multiplier
-            .mul(oraclePerBlock)
+        uint256 proReward = multiplier
+            .mul(proPerBlock)
             .mul(pool.allocPoint)
             .div(totalAllocPoint);
-        oracle.mint(devaddr, oracleReward.div(10));
-        oracle.mint(address(this), oracleReward);
-        pool.accOraclePerShare = pool.accOraclePerShare.add(
-            oracleReward.mul(1e12).div(lpSupply)
+        pro.mint(devaddr, proReward.div(10));
+        pro.mint(address(this), proReward);
+        pool.accProPerShare = pool.accProPerShare.add(
+            proReward.mul(1e12).div(lpSupply)
         );
         pool.lastRewardBlock = block.number;
     }
 
-    // Deposit LP tokens to MasterChef for ORACLE allocation.
+    // Deposit LP tokens to MasterChef for PRO allocation.
     function deposit(uint256 _pid, uint256 _amount) public {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
@@ -242,10 +231,10 @@ contract MasterChef is Ownable {
         if (user.amount > 0) {
             uint256 pending = user
                 .amount
-                .mul(pool.accOraclePerShare)
+                .mul(pool.accProPerShare)
                 .div(1e12)
                 .sub(user.rewardDebt);
-            safeOracleTransfer(msg.sender, pending);
+            safeProTransfer(msg.sender, pending);
         }
         pool.lpToken.safeTransferFrom(
             address(msg.sender),
@@ -253,22 +242,22 @@ contract MasterChef is Ownable {
             _amount
         );
         user.amount = user.amount.add(_amount);
-        user.rewardDebt = user.amount.mul(pool.accOraclePerShare).div(1e12);
+        user.rewardDebt = user.amount.mul(pool.accProPerShare).div(1e12);
         emit Deposit(msg.sender, _pid, _amount);
     }
 
-    // Withdraw LP tokens from MasterChef.
+    // Withdraw LP tokens from MasterProphet.
     function withdraw(uint256 _pid, uint256 _amount) public {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount >= _amount, "withdraw: not good");
         updatePool(_pid);
-        uint256 pending = user.amount.mul(pool.accOraclePerShare).div(1e12).sub(
+        uint256 pending = user.amount.mul(pool.accProPerShare).div(1e12).sub(
             user.rewardDebt
         );
-        safeOracleTransfer(msg.sender, pending);
+        safeProTransfer(msg.sender, pending);
         user.amount = user.amount.sub(_amount);
-        user.rewardDebt = user.amount.mul(pool.accOraclePerShare).div(1e12);
+        user.rewardDebt = user.amount.mul(pool.accProPerShare).div(1e12);
         pool.lpToken.safeTransfer(address(msg.sender), _amount);
         emit Withdraw(msg.sender, _pid, _amount);
     }
@@ -283,13 +272,13 @@ contract MasterChef is Ownable {
         user.rewardDebt = 0;
     }
 
-    // Safe oracle transfer function, just in case if rounding error causes pool to not have enough ORACLEs.
-    function safeOracleTransfer(address _to, uint256 _amount) internal {
-        uint256 oracleBal = oracle.balanceOf(address(this));
-        if (_amount > oracleBal) {
-            oracle.transfer(_to, oracleBal);
+    // Safe pro transfer function, just in case if rounding error causes pool to not have enough PROs.
+    function safeProTransfer(address _to, uint256 _amount) internal {
+        uint256 proBal = pro.balanceOf(address(this));
+        if (_amount > proBal) {
+            pro.transfer(_to, proBal);
         } else {
-            oracle.transfer(_to, _amount);
+            pro.transfer(_to, _amount);
         }
     }
 
@@ -299,7 +288,7 @@ contract MasterChef is Ownable {
         devaddr = _devaddr;
     }
 
-    function updateOraclePerBlock(uint256 _oraclePerBlock) public onlyOwner {
-        oraclePerBlock = _oraclePerBlock;
+    function updateProPerBlock(uint256 _proPerBlock) public onlyOwner {
+        proPerBlock = _proPerBlock;
     }
 }

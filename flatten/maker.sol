@@ -1,7 +1,7 @@
 // Sources flattened with hardhat v2.6.7 https://hardhat.org
 
 // File contracts/libraries/SafeMath.sol
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0
 
 pragma solidity 0.6.12;
 // a library for performing overflow-safe math, updated with awesomeness from of DappHub (https://github.com/dapphub/ds-math)
@@ -74,7 +74,6 @@ library SafeERC20 {
 
 // File contracts/uniswapv2/interfaces/IUniswapV2ERC20.sol
 
-// SPDX-License-Identifier: GPL-3.0
 
 pragma solidity >=0.5.0;
 
@@ -103,7 +102,7 @@ interface IUniswapV2ERC20 {
 
 // File contracts/uniswapv2/interfaces/IUniswapV2Pair.sol
 
-// SPDX-License-Identifier: GPL-3.0
+
 
 pragma solidity >=0.5.0;
 
@@ -161,7 +160,6 @@ interface IUniswapV2Pair {
 
 // File contracts/uniswapv2/interfaces/IUniswapV2Factory.sol
 
-// SPDX-License-Identifier: GPL-3.0
 
 pragma solidity >=0.5.0;
 
