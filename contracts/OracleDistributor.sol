@@ -50,7 +50,6 @@ contract OracleDistributor is Ownable {
         uint256 amountORACLE
     );
 
-    address public  oracleFoundry ;
     address public  oracleTreasury;
     address public  constant deadAddress = 0x000000000000000000000000000000000000dEaD;
 
@@ -296,11 +295,11 @@ contract OracleDistributor is Ownable {
     {
         // X1 - X5: OK
         if(oracleTreasury  != address(0)){
-            amountOut = _swap(token, oracle, amountIn.mul(7).div(10), oracleFoundry);
+            amountOut = _swap(token, oracle, amountIn.mul(7).div(10), xOracle);
             amountOut = _swap(token, oracle, amountIn.mul(2).div(10), oracleTreasury);
             amountOut = _swap(token, oracle, amountIn.div(10), deadAddress);
         }else{
-            amountOut = _swap(token, oracle, amountIn.mul(8).div(10), oracleFoundry);
+            amountOut = _swap(token, oracle, amountIn.mul(8).div(10), xOracle);
             amountOut = _swap(token, oracle, amountIn.mul(2).div(10), deadAddress);
         }
         // amountOut = _swap(token, oracle, amountIn, xOracle);
@@ -311,9 +310,7 @@ contract OracleDistributor is Ownable {
         oracleTreasury = _treasury;
     }
 
-    function setOracleFoundry (address _foundry)  external  onlyOwner {
-        oracleFoundry = _foundry;
-    }
+
 
     function setOracleTreasurySetter (address _oracleTreasurySetter) external {
         require(msg.sender == oracleTreasurySetter, 'OracleDistributor: FORBIDDEN');
