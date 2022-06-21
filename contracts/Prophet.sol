@@ -264,7 +264,7 @@ contract ProphetToken is IERC20 ,Ownable {
         _balances[sender] = _balances[sender].sub(amount, "ERC20: transfer amount exceeds balance");
         _balances[recipient] = _balances[recipient].add(transferAmount);
 
-        _moveDelegates(sender, _delegates[recipient], transferAmount);
+        _moveDelegates(_delegates[sender], _delegates[recipient], transferAmount);
         emit Transfer(sender, recipient, amount);
     }
 
