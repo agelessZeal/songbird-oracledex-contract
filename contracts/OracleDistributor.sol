@@ -30,10 +30,14 @@ contract OracleDistributor is Ownable {
 
     uint256 public MIN_LP_AMOUNT = 0.003 * 10**18;
 
+    uint256 public limit_gas = 80000;
+
     uint256 public oracleFoundryTotalAmount = 0;
     uint256 public oracleTreasuryTotalAmount = 0;
     uint256 public oracleBurnTotalAmount = 0;
     uint256 public oracleTotalAmount = 0;
+
+    bool private onlyOracleLp = true;
 
     // V1 - V5: OK
     mapping(address => address) internal _bridges;
@@ -110,6 +114,14 @@ contract OracleDistributor is Ownable {
         MIN_LP_AMOUNT = _amount;
     }
 
+    function setGasLimit(uint256 _limit_gas) external onlyOwner {
+        limit_gas = _limit_gas;
+    }
+
+    function setOracleLPEnable(bool _onlyOracleLp) external onlyOwner {
+        onlyOracleLp = _onlyOracleLp;
+    }
+
     // C6: It's not a fool proof solution, but it prevents flash loans, so here it's ok to use tx.origin
     modifier onlyEOA() {
         // Try to make flash-loan exploit harder to do by only allowing externally owned addresses.
@@ -120,12 +132,36 @@ contract OracleDistributor is Ownable {
     function LPConvert() external onlyEOA() onlyHolder {
         uint256 len = factory.allPairsLength();
 
-        for (uint256 i = 0; i < len; i++) {
-            IUniswapV2Pair pair = IUniswapV2Pair(factory.allPairs(i));
+        uint256 gasUsed = 0;
+
+        uint256 gasLeft = gasleft();
+
+        uint256 iterations = 0;
+
+        while (gasUsed < limit_gas && iterations < len) {
+
+            IUniswapV2Pair pair = IUniswapV2Pair(factory.allPairs(iterations));
             uint256 lpBalance = pair.balanceOf(address(this));
+
             if(lpBalance > MIN_LP_AMOUNT ){
-                _convert(pair.token0(), pair.token1());
+                if(onlyOracleLp){
+                   if(pair.token0() == oracle || pair.token0() == weth || pair.token1()== oracle || pair.token1() == weth){
+                      _convert(pair.token0(), pair.token1());
+                   }
+                }else{
+                    _convert(pair.token0(), pair.token1());
+                }
             }
+            
+            iterations++;
+
+            uint256 newGasLeft = gasleft();
+
+            if (gasLeft > newGasLeft) {
+                gasUsed = gasUsed.add(gasLeft.sub(newGasLeft));
+            }
+
+            gasLeft = newGasLeft;
         }
     }
 
@@ -135,7 +171,13 @@ contract OracleDistributor is Ownable {
             IUniswapV2Pair pair = IUniswapV2Pair(factory.allPairs(i));
             uint256 lpBalance = pair.balanceOf(address(this));
             if(lpBalance > MIN_LP_AMOUNT ){
-                return true;
+                if(onlyOracleLp){
+                   if(pair.token0() == oracle || pair.token0() == weth || pair.token1()== oracle || pair.token1() == weth){
+                      return true;
+                   }
+                }else{
+                    return true;
+                }
             }
         }
         return false;
