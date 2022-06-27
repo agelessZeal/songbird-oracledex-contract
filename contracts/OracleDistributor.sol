@@ -28,14 +28,17 @@ contract OracleDistributor is Ownable {
 
     address public  oracleTreasurySetter;
 
+    address public  prophetSacrificeSetter;
+
     uint256 public MIN_LP_AMOUNT = 0.003 * 10**18;
 
-    uint256 public limit_gas = 80000;
+    uint256 public limit_gas = 160000;
 
     uint256 public oracleFoundryTotalAmount = 0;
     uint256 public oracleTreasuryTotalAmount = 0;
     uint256 public oracleBurnTotalAmount = 0;
     uint256 public oracleTotalAmount = 0;
+    uint256 public prophetSacrificeTotalAmount = 0;
 
     bool private onlyOracleLp = true;
 
@@ -66,12 +69,18 @@ contract OracleDistributor is Ownable {
         uint256 amountORACLE
     );
 
+    event ProphetSacrificeConvert(
+        uint256 amountORACLE
+    );
+
     event TotalConvert(
         uint256 amountORACLE
     );
 
     address public  oracleTreasury;
     address public  constant deadAddress = 0x000000000000000000000000000000000000dEaD;
+
+    address public  prophetSacrifice;
 
     modifier onlyHolder() {
         require(IERC20(oracle).balanceOf(msg.sender) > 0,"should hold oracle");
@@ -89,6 +98,7 @@ contract OracleDistributor is Ownable {
         oracle = _oracle;
         weth = _weth;
         oracleTreasurySetter = address(msg.sender);
+        prophetSacrificeSetter = address(msg.sender);
     }
 
     function bridgeFor(address token) public view returns (address bridge) {
@@ -340,27 +350,40 @@ contract OracleDistributor is Ownable {
         if(oracleTreasury  != address(0)){
             uint256 foundryAmount = _swap(token, oracle, amountIn.mul(7).div(10), xOracle);
             oracleFoundryTotalAmount =  oracleFoundryTotalAmount.add(foundryAmount);
-            uint256 treasuryAmount = _swap(token, oracle, amountIn.mul(2).div(10), oracleTreasury);
+
+            uint256 treasuryAmount = _swap(token, oracle, amountIn.div(10), oracleTreasury);
             oracleTreasuryTotalAmount =  oracleTreasuryTotalAmount.add(treasuryAmount);
+
+            uint256 prophetSacrificeAmount = _swap(token, oracle, amountIn.div(10), prophetSacrifice);
+            prophetSacrificeTotalAmount =  prophetSacrificeTotalAmount.add(prophetSacrificeAmount);
+
             uint256 burnAmount = _swap(token, oracle, amountIn.div(10), deadAddress);
             oracleBurnTotalAmount =  oracleBurnTotalAmount.add(burnAmount);
+
             amountOut = foundryAmount.add(treasuryAmount).add(burnAmount);
             oracleTotalAmount = oracleTotalAmount.add(amountOut);
 
             emit FoundryConvert(foundryAmount);
             emit TreasuryConvert(treasuryAmount);
             emit BurnConvert(burnAmount);
+            emit ProphetSacrificeConvert(prophetSacrificeAmount);
             emit TotalConvert(amountOut);
 
         }else{
-            uint256 foundryAmount = _swap(token, oracle, amountIn.mul(8).div(10), xOracle);
+            uint256 foundryAmount = _swap(token, oracle, amountIn.mul(7).div(10), xOracle);
             oracleFoundryTotalAmount =  oracleFoundryTotalAmount.add(foundryAmount);
-            uint256 burnAmount  = _swap(token, oracle, amountIn.mul(2).div(10), deadAddress);
+
+            uint256 prophetSacrificeAmount = _swap(token, oracle, amountIn.mul(2).div(10), prophetSacrifice);
+            prophetSacrificeTotalAmount =  prophetSacrificeTotalAmount.add(prophetSacrificeAmount);
+
+            uint256 burnAmount  = _swap(token, oracle, amountIn.div(10), deadAddress);
             oracleBurnTotalAmount =  oracleBurnTotalAmount.add(burnAmount);
+
             amountOut = foundryAmount.add(burnAmount);
             oracleTotalAmount = oracleTotalAmount.add(amountOut);
             
             emit FoundryConvert(foundryAmount);
+            emit ProphetSacrificeConvert(prophetSacrificeAmount);
             emit BurnConvert(burnAmount);
             emit TotalConvert(amountOut);
         }
@@ -374,5 +397,15 @@ contract OracleDistributor is Ownable {
     function setOracleTreasurySetter (address _oracleTreasurySetter) external {
         require(msg.sender == oracleTreasurySetter, 'OracleDistributor: FORBIDDEN');
         oracleTreasurySetter = _oracleTreasurySetter;
+    }
+
+    function setProphetSacrifice (address _prophetSacrifice)  external  {
+        require(msg.sender == prophetSacrificeSetter, 'OracleDistributor: FORBIDDEN');
+        prophetSacrifice = _prophetSacrifice;
+    }
+
+    function setProphetSacrificeSetter (address _prophetSacrificeSetter) external {
+        require(msg.sender == prophetSacrificeSetter, 'OracleDistributor: FORBIDDEN');
+        prophetSacrificeSetter = _prophetSacrificeSetter;
     }
 }
