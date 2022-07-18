@@ -12,7 +12,6 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 
 import "./Ownable.sol";
 
-
 // T1 - T4: OK
 contract OracleDistributor is Ownable {
     using SafeMath for uint256;
@@ -26,9 +25,13 @@ contract OracleDistributor is Ownable {
 
     address private immutable weth;
 
-    address public  oracleTreasurySetter;
+    address public oracleTreasurySetter;
 
-    address public  prophetSacrificeSetter;
+    address public badLpGetter;
+
+    mapping(address => bool) public reflectionLPs;
+
+    address public prophetSacrificeSetter;
 
     uint256 public MIN_LP_AMOUNT = 0.003 * 10**18;
 
@@ -57,33 +60,24 @@ contract OracleDistributor is Ownable {
         uint256 amountORACLE
     );
 
-    event FoundryConvert(
-        uint256 amountORACLE
-    );
+    event FoundryConvert(uint256 amountORACLE);
 
-    event TreasuryConvert(
-        uint256 amountORACLE
-    );
+    event TreasuryConvert(uint256 amountORACLE);
 
-    event BurnConvert(
-        uint256 amountORACLE
-    );
+    event BurnConvert(uint256 amountORACLE);
 
-    event ProphetSacrificeConvert(
-        uint256 amountORACLE
-    );
+    event ProphetSacrificeConvert(uint256 amountORACLE);
 
-    event TotalConvert(
-        uint256 amountORACLE
-    );
+    event TotalConvert(uint256 amountORACLE);
 
-    address public  oracleTreasury;
-    address public  constant deadAddress = 0x000000000000000000000000000000000000dEaD;
+    address public oracleTreasury;
+    address public constant deadAddress =
+        0x000000000000000000000000000000000000dEaD;
 
-    address public  prophetSacrifice;
+    address public prophetSacrifice;
 
     modifier onlyHolder() {
-        require(IERC20(oracle).balanceOf(msg.sender) > 0,"should hold oracle");
+        require(IERC20(oracle).balanceOf(msg.sender) > 0, "should hold oracle");
         _;
     }
 
@@ -139,7 +133,7 @@ contract OracleDistributor is Ownable {
         _;
     }
 
-    function LPConvert() external onlyEOA() onlyHolder {
+    function LPConvert() external onlyEOA onlyHolder {
         uint256 len = factory.allPairsLength();
 
         uint256 gasUsed = 0;
@@ -149,20 +143,31 @@ contract OracleDistributor is Ownable {
         uint256 iterations = 0;
 
         while (gasUsed < limit_gas && iterations < len) {
-
             IUniswapV2Pair pair = IUniswapV2Pair(factory.allPairs(iterations));
             uint256 lpBalance = pair.balanceOf(address(this));
 
-            if(lpBalance > MIN_LP_AMOUNT ){
-                if(onlyOracleLp){
-                   if(pair.token0() == oracle || pair.token0() == weth || pair.token1()== oracle || pair.token1() == weth){
-                      _convert(pair.token0(), pair.token1());
-                   }
-                }else{
-                    _convert(pair.token0(), pair.token1());
+            if (lpBalance > MIN_LP_AMOUNT) {
+                if (reflectionLPs[address(pair)]) {
+                    IERC20(address(pair)).safeTransfer(
+                        badLpGetter,
+                        pair.balanceOf(address(this))
+                    );
+                } else {
+                    if (onlyOracleLp) {
+                        if (
+                            pair.token0() == oracle ||
+                            pair.token0() == weth ||
+                            pair.token1() == oracle ||
+                            pair.token1() == weth
+                        ) {
+                            _convert(pair.token0(), pair.token1());
+                        }
+                    } else {
+                        _convert(pair.token0(), pair.token1());
+                    }
                 }
             }
-            
+
             iterations++;
 
             uint256 newGasLeft = gasleft();
@@ -175,17 +180,22 @@ contract OracleDistributor is Ownable {
         }
     }
 
-    function LPEnalbe() external view returns (bool)  {
+    function LPEnalbe() external view returns (bool) {
         uint256 len = factory.allPairsLength();
         for (uint256 i = 0; i < len; i++) {
             IUniswapV2Pair pair = IUniswapV2Pair(factory.allPairs(i));
             uint256 lpBalance = pair.balanceOf(address(this));
-            if(lpBalance > MIN_LP_AMOUNT ){
-                if(onlyOracleLp){
-                   if(pair.token0() == oracle || pair.token0() == weth || pair.token1()== oracle || pair.token1() == weth){
-                      return true;
-                   }
-                }else{
+            if (lpBalance > MIN_LP_AMOUNT) {
+                if (onlyOracleLp) {
+                    if (
+                        pair.token0() == oracle ||
+                        pair.token0() == weth ||
+                        pair.token1() == oracle ||
+                        pair.token1() == weth
+                    ) {
+                        return true;
+                    }
+                } else {
                     return true;
                 }
             }
@@ -199,7 +209,11 @@ contract OracleDistributor is Ownable {
     //     As the size of the xOracle has grown, this requires large amounts of funds and isn't super profitable anymore
     //     The onlyEOA modifier prevents this being done with a flash loan.
     // C1 - C24: OK
-    function convert(address token0, address token1) external onlyEOA()  onlyHolder {
+    function convert(address token0, address token1)
+        external
+        onlyEOA
+        onlyHolder
+    {
         _convert(token0, token1);
     }
 
@@ -209,7 +223,7 @@ contract OracleDistributor is Ownable {
     function convertMultiple(
         address[] calldata token0,
         address[] calldata token1
-    ) external onlyEOA()  onlyHolder {
+    ) external onlyEOA onlyHolder {
         // TODO: This can be optimized a fair bit, but this is safer and simpler for now
         uint256 len = token0.length;
         for (uint256 i = 0; i < len; i++) {
@@ -318,9 +332,13 @@ contract OracleDistributor is Ownable {
         address to
     ) internal returns (uint256 amountOut) {
         // Checks
-        IUniswapV2Pair pair =
-            IUniswapV2Pair(factory.getPair(fromToken, toToken));
-        require(address(pair) != address(0), "OracleDistributor: Cannot convert");
+        IUniswapV2Pair pair = IUniswapV2Pair(
+            factory.getPair(fromToken, toToken)
+        );
+        require(
+            address(pair) != address(0),
+            "OracleDistributor: Cannot convert"
+        );
 
         // Interactions
         (uint256 reserve0, uint256 reserve1, ) = pair.getReserves();
@@ -330,14 +348,22 @@ contract OracleDistributor is Ownable {
                 amountInWithFee.mul(reserve1) /
                 reserve0.mul(1000).add(amountInWithFee);
             IERC20(fromToken).safeTransfer(address(pair), amountIn);
-            pair.swap(0, amountOut, to, new bytes(0));
+
+            try pair.swap(0, amountOut, to, new bytes(0)) {} catch (
+                bytes memory /** */
+            ) {}
+
             // TODO: Add maximum slippage?
         } else {
             amountOut =
                 amountInWithFee.mul(reserve0) /
                 reserve1.mul(1000).add(amountInWithFee);
             IERC20(fromToken).safeTransfer(address(pair), amountIn);
-            pair.swap(amountOut, 0, to, new bytes(0));
+
+            try pair.swap(amountOut, 0, to, new bytes(0)) {} catch (
+                bytes memory /** */
+            ) {}
+
             // TODO: Add maximum slippage?
         }
     }
@@ -346,19 +372,44 @@ contract OracleDistributor is Ownable {
         internal
         returns (uint256 amountOut)
     {
+        if (oracleTreasury != address(0)) {
+            uint256 foundryAmount = _swap(
+                token,
+                oracle,
+                amountIn.mul(7).div(10),
+                xOracle
+            );
+            oracleFoundryTotalAmount = oracleFoundryTotalAmount.add(
+                foundryAmount
+            );
 
-        if(oracleTreasury  != address(0)){
-            uint256 foundryAmount = _swap(token, oracle, amountIn.mul(7).div(10), xOracle);
-            oracleFoundryTotalAmount =  oracleFoundryTotalAmount.add(foundryAmount);
+            uint256 treasuryAmount = _swap(
+                token,
+                oracle,
+                amountIn.div(10),
+                oracleTreasury
+            );
+            oracleTreasuryTotalAmount = oracleTreasuryTotalAmount.add(
+                treasuryAmount
+            );
 
-            uint256 treasuryAmount = _swap(token, oracle, amountIn.div(10), oracleTreasury);
-            oracleTreasuryTotalAmount =  oracleTreasuryTotalAmount.add(treasuryAmount);
+            uint256 prophetSacrificeAmount = _swap(
+                token,
+                oracle,
+                amountIn.div(10),
+                prophetSacrifice
+            );
+            prophetSacrificeTotalAmount = prophetSacrificeTotalAmount.add(
+                prophetSacrificeAmount
+            );
 
-            uint256 prophetSacrificeAmount = _swap(token, oracle, amountIn.div(10), prophetSacrifice);
-            prophetSacrificeTotalAmount =  prophetSacrificeTotalAmount.add(prophetSacrificeAmount);
-
-            uint256 burnAmount = _swap(token, oracle, amountIn.div(10), deadAddress);
-            oracleBurnTotalAmount =  oracleBurnTotalAmount.add(burnAmount);
+            uint256 burnAmount = _swap(
+                token,
+                oracle,
+                amountIn.div(10),
+                deadAddress
+            );
+            oracleBurnTotalAmount = oracleBurnTotalAmount.add(burnAmount);
 
             amountOut = foundryAmount.add(treasuryAmount).add(burnAmount);
             oracleTotalAmount = oracleTotalAmount.add(amountOut);
@@ -368,20 +419,38 @@ contract OracleDistributor is Ownable {
             emit BurnConvert(burnAmount);
             emit ProphetSacrificeConvert(prophetSacrificeAmount);
             emit TotalConvert(amountOut);
+        } else {
+            uint256 foundryAmount = _swap(
+                token,
+                oracle,
+                amountIn.mul(7).div(10),
+                xOracle
+            );
+            oracleFoundryTotalAmount = oracleFoundryTotalAmount.add(
+                foundryAmount
+            );
 
-        }else{
-            uint256 foundryAmount = _swap(token, oracle, amountIn.mul(7).div(10), xOracle);
-            oracleFoundryTotalAmount =  oracleFoundryTotalAmount.add(foundryAmount);
+            uint256 prophetSacrificeAmount = _swap(
+                token,
+                oracle,
+                amountIn.mul(2).div(10),
+                prophetSacrifice
+            );
+            prophetSacrificeTotalAmount = prophetSacrificeTotalAmount.add(
+                prophetSacrificeAmount
+            );
 
-            uint256 prophetSacrificeAmount = _swap(token, oracle, amountIn.mul(2).div(10), prophetSacrifice);
-            prophetSacrificeTotalAmount =  prophetSacrificeTotalAmount.add(prophetSacrificeAmount);
-
-            uint256 burnAmount  = _swap(token, oracle, amountIn.div(10), deadAddress);
-            oracleBurnTotalAmount =  oracleBurnTotalAmount.add(burnAmount);
+            uint256 burnAmount = _swap(
+                token,
+                oracle,
+                amountIn.div(10),
+                deadAddress
+            );
+            oracleBurnTotalAmount = oracleBurnTotalAmount.add(burnAmount);
 
             amountOut = foundryAmount.add(burnAmount);
             oracleTotalAmount = oracleTotalAmount.add(amountOut);
-            
+
             emit FoundryConvert(foundryAmount);
             emit ProphetSacrificeConvert(prophetSacrificeAmount);
             emit BurnConvert(burnAmount);
@@ -389,23 +458,45 @@ contract OracleDistributor is Ownable {
         }
     }
 
-    function setOracleTreasury (address _treasury)  external  {
-        require(msg.sender == oracleTreasurySetter, 'OracleDistributor: FORBIDDEN');
+    function setOracleTreasury(address _treasury) external {
+        require(
+            msg.sender == oracleTreasurySetter,
+            "OracleDistributor: FORBIDDEN"
+        );
         oracleTreasury = _treasury;
     }
 
-    function setOracleTreasurySetter (address _oracleTreasurySetter) external {
-        require(msg.sender == oracleTreasurySetter, 'OracleDistributor: FORBIDDEN');
+    function setOracleTreasurySetter(address _oracleTreasurySetter) external {
+        require(
+            msg.sender == oracleTreasurySetter,
+            "OracleDistributor: FORBIDDEN"
+        );
         oracleTreasurySetter = _oracleTreasurySetter;
     }
 
-    function setProphetSacrifice (address _prophetSacrifice)  external  {
-        require(msg.sender == prophetSacrificeSetter, 'OracleDistributor: FORBIDDEN');
+    function setProphetSacrifice(address _prophetSacrifice) external {
+        require(
+            msg.sender == prophetSacrificeSetter,
+            "OracleDistributor: FORBIDDEN"
+        );
         prophetSacrifice = _prophetSacrifice;
     }
 
-    function setProphetSacrificeSetter (address _prophetSacrificeSetter) external {
-        require(msg.sender == prophetSacrificeSetter, 'OracleDistributor: FORBIDDEN');
+    function setProphetSacrificeSetter(address _prophetSacrificeSetter)
+        external
+    {
+        require(
+            msg.sender == prophetSacrificeSetter,
+            "OracleDistributor: FORBIDDEN"
+        );
         prophetSacrificeSetter = _prophetSacrificeSetter;
+    }
+
+    function setReflectionLP(address _lp, bool _enable) external onlyOwner {
+        reflectionLPs[_lp] = _enable;
+    }
+
+    function setBadLpGetter(address _getter) external onlyOwner {
+        badLpGetter = _getter;
     }
 }
