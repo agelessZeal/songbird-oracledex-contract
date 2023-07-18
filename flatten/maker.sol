@@ -3,7 +3,7 @@
 // File contracts/libraries/SafeMath.sol
 // SPDX-License-Identifier: GPL-3.0
 
-pragma solidity 0.6.12;
+pragma solidity ^0.7.6;
 // a library for performing overflow-safe math, updated with awesomeness from of DappHub (https://github.com/dapphub/ds-math)
 library SafeMath {
     function add(uint256 a, uint256 b) internal pure returns (uint256 c) {require((c = a + b) >= b, "SafeMath: Add Overflow");}
@@ -24,7 +24,7 @@ library SafeMath128 {
 // File contracts/interfaces/IERC20.sol
 
 
-pragma solidity 0.6.12;
+pragma solidity ^0.7.6;
 
 interface IERC20 {
     function totalSupply() external view returns (uint256);
@@ -42,7 +42,7 @@ interface IERC20 {
 // File contracts/libraries/SafeERC20.sol
 
 
-pragma solidity 0.6.12;
+pragma solidity ^0.7.6;
 
 library SafeERC20 {
     function safeSymbol(IERC20 token) internal view returns(string memory) {
@@ -188,7 +188,7 @@ interface IUniswapV2Factory {
 // Audit on 5-Jan-2021 by Keno and BoringCrypto
 
 // P1 - P3: OK
-pragma solidity 0.6.12;
+pragma solidity ^0.7.6;
 
 // Source: https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/access/Ownable.sol + Claimable.sol
 // Edited by BoringCrypto
@@ -255,7 +255,7 @@ contract Ownable is OwnableData {
 
 
 // P1 - P3: OK
-pragma solidity 0.6.12;
+pragma solidity ^0.7.6;
 
 
 

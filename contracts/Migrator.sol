@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.6.12;
+pragma solidity ^0.7.6;
 
 import "./uniswapv2/interfaces/IUniswapV2Pair.sol";
 import "./uniswapv2/interfaces/IUniswapV2Factory.sol";
@@ -18,7 +18,7 @@ contract Migrator {
         address _oldFactory,
         IUniswapV2Factory _factory,
         uint256 _notBeforeBlock
-    ) public {
+    ) {
         chef = _chef;
         oldFactory = _oldFactory;
         factory = _factory;

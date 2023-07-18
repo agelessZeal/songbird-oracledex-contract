@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.6.12;
+pragma solidity ^0.7.6;
 import "./libraries/SafeERC20.sol";
 
 import "./uniswapv2/interfaces/IUniswapV2ERC20.sol";
@@ -28,7 +28,6 @@ contract ProphetSacrifice is Ownable {
     address public prophetStakerSetter;
 
     uint256 public proPercentage = 20;
-
 
     address public constant deadAddress =
         0x000000000000000000000000000000000000dEaD;
@@ -75,37 +74,42 @@ contract ProphetSacrifice is Ownable {
     function burnPro() external onlyEOA onlyHolder {
         uint256 oracleBalance = IERC20(oracle).balanceOf(address(this));
 
-        uint256 amountSgb = _swap(oracle, wsgb, oracleBalance, address(this));
+        if (oracleBalance > 0) {
 
-        uint256 _amount = _swap(wsgb, prophet, amountSgb, address(this));
+            uint256 amountSgb = _swap(oracle, wsgb, oracleBalance, address(this));
 
-        uint256 amountPro = _amount.div(100).mul(99);
+            uint256 _amount = _swap(wsgb, prophet, amountSgb, address(this));
 
-        if (prophetStaker != address(0) && proPercentage != 0) {
-            uint256 stakerAmount = amountPro.mul(proPercentage).div(100);
+            uint256 amountPro = _amount.div(100).mul(99);
 
-            IERC20(address(prophet)).safeTransfer(prophetStaker, stakerAmount);
+            if (prophetStaker != address(0) && proPercentage != 0) {
+                uint256 stakerAmount = amountPro.mul(proPercentage).div(100);
 
-            emit ProToStake(stakerAmount);
+                IERC20(address(prophet)).safeTransfer(
+                    prophetStaker,
+                    stakerAmount
+                );
 
-            totalStakePro = totalStakePro.add(stakerAmount);
+                emit ProToStake(stakerAmount);
 
-            uint256 burnAmount = amountPro.sub(stakerAmount);
+                totalStakePro = totalStakePro.add(stakerAmount);
 
-            IERC20(address(prophet)).safeTransfer(deadAddress, burnAmount);
+                uint256 burnAmount = amountPro.sub(stakerAmount);
 
-            totalBurnPro = totalBurnPro.add(burnAmount);
+                IERC20(address(prophet)).safeTransfer(deadAddress, burnAmount);
 
-            emit BurnPro(burnAmount);
-        } else {
-            IERC20(address(prophet)).safeTransfer(deadAddress, amountPro);
+                totalBurnPro = totalBurnPro.add(burnAmount);
 
-            emit BurnPro(amountPro);
+                emit BurnPro(burnAmount);
+            } else {
+                IERC20(address(prophet)).safeTransfer(deadAddress, amountPro);
 
-            totalBurnPro = totalBurnPro.add(amountPro);
+                emit BurnPro(amountPro);
+
+                totalBurnPro = totalBurnPro.add(amountPro);
+            }
         }
     }
-
 
     function _swap(
         address fromToken,

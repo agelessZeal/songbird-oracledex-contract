@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 // P1 - P3: OK
-pragma solidity 0.6.12;
+pragma solidity ^0.7.6;
 import "./libraries/SafeERC20.sol";
 
 import "./uniswapv2/interfaces/IUniswapV2ERC20.sol";
@@ -86,7 +86,7 @@ contract OracleDistributor is Ownable {
         address _xOracle,
         address _oracle,
         address _weth
-    ) public {
+    )  {
         factory = IUniswapV2Factory(_factory);
         xOracle = _xOracle;
         oracle = _oracle;

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.6.12;
+pragma solidity ^0.7.6;
 
 library SignedSafeMath {
     int256 constant private _INT256_MIN = -2**255;
